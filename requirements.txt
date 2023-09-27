@@ -5,3 +5,4 @@ pandas_profiling
 matplotlib
 seaborn
 statistics
+scikit-learn
