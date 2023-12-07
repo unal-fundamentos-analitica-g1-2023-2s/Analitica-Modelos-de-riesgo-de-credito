@@ -2,13 +2,20 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import pickle
-import time
 
 modelo = pickle.load(open('./data/modeloSerializado.pkl', 'rb'))
 scaler = pickle.load(open('./data/scalerSerializado.pkl', 'rb'))
-# pickle.dump(modelo, open('modeloSerializado.pkl', 'wb'))
-# pickle.dump(scaler, open('scalerSerializado.pkl', 'wb'))
+# pickle.dump(finalModel, open('modeloSerializado.pkl', 'wb'))
+# pickle.dump(finalScaler, open('scalerSerializado.pkl', 'wb'))
 
+
+def loan_score_generator(prediction_probability):
+  min_prob_limit = 0.0000000001
+  max_prob_limit = 0.9999999999
+  min_score = 300
+  max_score = 850
+  conversion_factor = (max_score - min_score) / (max_prob_limit - min_prob_limit)
+  return int((prediction_probability - min_prob_limit) * conversion_factor + min_score)
 
 # '''
 # Función para mapear person_home_ownership
@@ -61,7 +68,7 @@ def process_inputs():
   loan_intent = int(sut_g(input_loan_intent))
   loan_amnt = int(input_loan_amnt)
   loan_int_rate = float(input_loan_int_rate)
-  cb_person_default_on_file = int(sut_a(input_cb_person_default_on_file))
+  cb_person_default_on_file = 0 #int(sut_a(input_cb_person_default_on_file))
 
   x_data_0 = [[
     person_age,
@@ -69,17 +76,24 @@ def process_inputs():
     person_home_ownership,
     person_emp_length,
     loan_intent,
+    0, #loan_grade 5
     loan_amnt,
     loan_int_rate,
+    0, #loan_status 8
+    0, #loan_percent_income 9
     cb_person_default_on_file
   ]]
+  x_data_1 = scaler.transform(x_data_0)
+  x_data = x_data_1[:, [0, 1, 2, 3, 4, 6, 7, 10]]
 
-  x_data = scaler.transform(x_data_0)
-  y_data = [0]
-  #
+
   print(x_data_0)
   print(x_data)
-  return modelo.score(x_data, y_data)
+
+  probabilidad = modelo.predict_proba(x_data)[0][1]
+  score = loan_score_generator(probabilidad)
+  print(probabilidad, score)
+  return score
 
 
 ####################
@@ -95,6 +109,7 @@ mainTitle = st.empty()
 
 with col1:
   mainTitle.title('Llena los datos para conocer tu resultado')
+st.video('https://www.youtube.com/watch?v=E3AGEPO8xBs')
 
 
 
@@ -108,18 +123,18 @@ st.sidebar.text('')
 st.sidebar.text('')
 
 input_person_age = st.sidebar.number_input("Edad", 18, 90)
-input_person_income = st.sidebar.number_input("Ingreso anual", 0)
-input_person_emp_length = st.sidebar.number_input("Tiempo en empleo", 0, 72)
-input_loan_amnt = st.sidebar.number_input("Monto del crédito", 1)
-input_loan_int_rate = st.sidebar.number_input("Tasa de interés", 0.0, 100.0)
+input_person_income = st.sidebar.number_input("Ingreso anual (USD)", 0)
+input_person_emp_length = st.sidebar.number_input("Tiempo en empleo (Años)", 0, 72)
+input_loan_amnt = st.sidebar.number_input("Monto del crédito (USD)", 1)
+input_loan_int_rate = st.sidebar.number_input("Tasa de interés (0.00% - 100.00%)", 0.0, 100.0)
 input_person_home_ownership = st.sidebar.selectbox('Tipo de vivienda', ['RENT', 'OWN', 'MORTGAGE', 'OTHER'])
 input_loan_intent = st.sidebar.selectbox('Destino del crédito', ['PERSONAL', 'EDUCATION', 'MEDICAL', 'VENTURE', 'HOMEIMPROVEMENT', 'DEBTCONSOLIDATION'])
-input_cb_person_default_on_file = st.sidebar.selectbox('¿Ha incurrido en mora?', ['N','Y'])
+# input_cb_person_default_on_file = st.sidebar.selectbox('¿Ha incurrido en mora?', ['N','Y'])
 
 if st.sidebar.button('Voy a tener suerte!'):
   acc = process_inputs()
   print(acc)
-  if acc > 0.7:
+  if acc > 500:
     with col1:
       mainTitle.title(':green[Felicitaciones! puedes pedir tu crédito!]')
       st.subheader(f'{acc}')
@@ -127,3 +142,7 @@ if st.sidebar.button('Voy a tener suerte!'):
     with col1:
       mainTitle.title(':red[Lamentablemente, aún no puedes solicitar un crédito]')
       st.subheader(f'{acc}')
+
+with st.expander('¿Qué es el Score crediticio?'):
+  st.write('El score crediticio es una evaluación numérica que representa la solvencia crediticia de un individuo o entidad. Calculado por agencias de crédito, este puntaje se basa en la información de historial crediticio, incluyendo préstamos, tarjetas de crédito y otros compromisos financieros. El objetivo es proporcionar a los prestamistas una rápida y cuantificable medida del riesgo asociado a otorgar crédito a una persona específica. Un score crediticio más alto sugiere una mayor confiabilidad y capacidad de pago, mientras que un puntaje más bajo indica un mayor riesgo crediticio. Este puntaje influye significativamente en la capacidad de obtener préstamos y créditos, así como en las tasas de interés asociadas a los mismos.')
+st.link_button('Ir al reporte técnico', 'https://unal-fundamentos-analitica-g1-2023-2s.github.io/Analitica-Modelos-de-riesgo-de-credito/')
